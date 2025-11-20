@@ -117,6 +117,7 @@ export const listStudents = async (req, res) => {
     .populate("classAssigned");
   const formattedStudents = students.map((s) => ({
     _id: s._id,
+    id: s._id,
     studentCode: s.studentCode,
     name: s.user.name,
     email: s.user.email,
@@ -127,21 +128,26 @@ export const listStudents = async (req, res) => {
     section: s.section,
     status: s.status,
     dob: s.dob,
+    dateOfBirth: s.dob,
     parentContact: s.parentContact,
     guardianName: s.guardianName,
     guardianPhone: s.guardianPhone,
+    address: s.address,
+    rollNumber: s.rollNumber,
   }));
   res.json(formattedStudents);
 };
 
-export const getStudent = async (req, res) => {
-  const { id } = req.params;
-  const student = await Student.findById(id)
+export const getStudentByCode = async (req, res) => {
+  const { code } = req.params;
+  if (!code) return res.status(400).json({ message: "Student code is required" });
+  const student = await Student.findOne({ studentCode: code })
     .populate("user", "name email avatar phone")
     .populate("classAssigned");
   if (!student) return res.status(404).json({ message: "Student not found" });
   res.json({
     _id: student._id,
+    id: student._id,
     studentCode: student.studentCode,
     name: student.user.name,
     email: student.user.email,
@@ -152,9 +158,40 @@ export const getStudent = async (req, res) => {
     section: student.section,
     status: student.status,
     dob: student.dob,
+    dateOfBirth: student.dob,
     parentContact: student.parentContact,
     guardianName: student.guardianName,
     guardianPhone: student.guardianPhone,
+    address: student.address,
+    rollNumber: student.rollNumber,
+  });
+};
+
+export const getStudent = async (req, res) => {
+  const { id } = req.params;
+  const student = await Student.findById(id)
+    .populate("user", "name email avatar phone")
+    .populate("classAssigned");
+  if (!student) return res.status(404).json({ message: "Student not found" });
+  res.json({
+    _id: student._id,
+    id: student._id,
+    studentCode: student.studentCode,
+    name: student.user.name,
+    email: student.user.email,
+    avatar: student.user.avatar,
+    phone: student.user.phone,
+    admissionNumber: student.admissionNumber,
+    className: student.className,
+    section: student.section,
+    status: student.status,
+    dob: student.dob,
+    dateOfBirth: student.dob,
+    parentContact: student.parentContact,
+    guardianName: student.guardianName,
+    guardianPhone: student.guardianPhone,
+    address: student.address,
+    rollNumber: student.rollNumber,
   });
 };
 
@@ -166,6 +203,8 @@ export const updateStudent = async (req, res) => {
     guardianName: Joi.string().optional(),
     guardianPhone: Joi.string().optional(),
     parentContact: Joi.string().optional(),
+    address: Joi.string().optional(),
+    rollNumber: Joi.string().optional(),
     status: Joi.string().valid("active", "inactive", "graduated").optional(),
   });
   const { error, value } = schema.validate(req.body);
@@ -178,6 +217,8 @@ export const updateStudent = async (req, res) => {
 
   res.json({
     _id: student._id,
+    id: student._id,
+    studentCode: student.studentCode,
     name: student.user.name,
     email: student.user.email,
     avatar: student.user.avatar,
@@ -186,6 +227,13 @@ export const updateStudent = async (req, res) => {
     className: student.className,
     section: student.section,
     status: student.status,
+    dob: student.dob,
+    dateOfBirth: student.dob,
+    parentContact: student.parentContact,
+    guardianName: student.guardianName,
+    guardianPhone: student.guardianPhone,
+    address: student.address,
+    rollNumber: student.rollNumber,
   });
 };
 
