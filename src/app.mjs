@@ -9,6 +9,7 @@ import studentRoutes from "./routes/students.mjs";
 import teacherRoutes from "./routes/teachers.mjs";
 import feeRoutes from "./routes/fees.mjs";
 import aiRoutes from "./routes/ai.mjs";
+import adminRoutes from "./routes/admin.mjs";
 import errorHandler from "./middleware/errorHandler.mjs";
 
 const app = express();
@@ -50,6 +51,7 @@ app.use("/api/students", studentRoutes);
 app.use("/api/teachers", teacherRoutes);
 app.use("/api/fees", feeRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.use((req, res) => res.status(404).json({ message: "Endpoint not found" }));
 app.use(errorHandler);
