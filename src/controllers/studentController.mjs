@@ -1,4 +1,5 @@
 import Joi from "joi";
+import { logAuditEvent } from "../utils/auditLogger.mjs";
 import Student from "../models/Student.mjs";
 import User from "../models/User.mjs";
 import ClassModel from "../models/Class.mjs";
@@ -50,7 +51,19 @@ export const createStudent = async (req, res) => {
     enrollmentDate,
   } = value;
   const exists = await User.findOne({ email });
-  if (exists) return res.status(409).json({ message: "Email already in use" });
+  if (exists) {
+    await logAuditEvent(
+      req.user?.id,
+      "CREATE_STUDENT",
+      "Student",
+      `Attempted to create student with email ${email} (already exists)`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { email }
+    );
+    return res.status(409).json({ message: "Email already in use" });
+  }
   const hash = await bcrypt.hash(password, 10);
   const user = await User.create({
     name,
@@ -120,6 +133,16 @@ export const createStudent = async (req, res) => {
     ));
   studentPayload.studentCode = finalStudentCode;
   const student = await Student.create(studentPayload);
+  await logAuditEvent(
+    req.user?.id,
+    "CREATE_STUDENT",
+    "Student",
+    `Created student ${name} (${email})`,
+    req.ip || req.connection?.remoteAddress,
+    req.get && req.get("user-agent"),
+    "success",
+    { studentId: student._id, userId: user._id, name, email }
+  );
   res
     .status(201)
     .json({ studentId: student._id, studentCode: student.studentCode, userId: user._id, user, student });
@@ -258,8 +281,29 @@ export const updateStudent = async (req, res) => {
   const student = await Student.findByIdAndUpdate(id, value, {
     new: true,
   }).populate("user", "name email avatar phone").populate("classAssigned");
-  if (!student) return res.status(404).json({ message: "Student not found" });
-
+  if (!student) {
+    await logAuditEvent(
+      req.user?.id,
+      "UPDATE_STUDENT",
+      "Student",
+      `Attempted to update student ${id} (not found)`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { studentId: id }
+    );
+    return res.status(404).json({ message: "Student not found" });
+  }
+  await logAuditEvent(
+    req.user?.id,
+    "UPDATE_STUDENT",
+    "Student",
+    `Updated student ${student.user.name} (${student.user.email})`,
+    req.ip || req.connection?.remoteAddress,
+    req.get && req.get("user-agent"),
+    "success",
+    { studentId: student._id, name: student.user.name, email: student.user.email }
+  );
   res.json({
     _id: student._id,
     id: student._id,
@@ -286,10 +330,33 @@ export const updateStudent = async (req, res) => {
 export const deleteStudent = async (req, res) => {
   const { id } = req.params;
   const student = await Student.findByIdAndDelete(id);
-  if (!student) return res.status(404).json({ message: "Student not found" });
+  if (!student) {
+    await logAuditEvent(
+      req.user?.id,
+      "DELETE_STUDENT",
+      "Student",
+      `Attempted to delete student ${id} (not found)`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { studentId: id }
+    );
+    return res.status(404).json({ message: "Student not found" });
+  }
 
   // Optionally delete the associated user as well
   await User.findByIdAndDelete(student.user);
+
+  await logAuditEvent(
+    req.user?.id,
+    "DELETE_STUDENT",
+    "Student",
+    `Deleted student ${student.user}`,
+    req.ip || req.connection?.remoteAddress,
+    req.get && req.get("user-agent"),
+    "success",
+    { studentId: student._id, userId: student.user }
+  );
 
   res.json({ message: "Student deleted successfully" });
 };

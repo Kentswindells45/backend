@@ -2,6 +2,7 @@ import Joi from "joi";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.mjs";
+import { logAuditEvent } from "../utils/auditLogger.mjs";
 
 export const register = async (req, res) => {
   const schema = Joi.object({
@@ -19,7 +20,19 @@ export const register = async (req, res) => {
 
   const { name, email, password, phone, address, role } = value;
   const exists = await User.findOne({ email });
-  if (exists) return res.status(409).json({ message: "Email already in use" });
+  if (exists) {
+    await logAuditEvent(
+      null,
+      "REGISTER",
+      "User",
+      `Attempted to register with email ${email} (already exists)`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { email }
+    );
+    return res.status(409).json({ message: "Email already in use" });
+  }
 
   const hash = await bcrypt.hash(password, 10);
   const user = await User.create({
@@ -30,6 +43,17 @@ export const register = async (req, res) => {
     phone,
     address,
   });
+
+  await logAuditEvent(
+    user._id,
+    "REGISTER",
+    "User",
+    `User ${name} (${email}) registered as ${role}`,
+    req.ip || req.connection?.remoteAddress,
+    req.get && req.get("user-agent"),
+    "success",
+    { userId: user._id, name, email, role }
+  );
 
   res.status(201).json({
     id: user._id,
@@ -52,10 +76,51 @@ export const login = async (req, res) => {
 
   const { email, password } = value;
   const user = await User.findOne({ email });
-  if (!user) return res.status(401).json({ message: "Invalid credentials" });
+  if (!user) {
+    await logAuditEvent(
+      null,
+      "LOGIN",
+      "User",
+      `Failed login attempt with email ${email} (user not found)`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { email }
+    );
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
 
   const match = await bcrypt.compare(password, user.password);
-  if (!match) return res.status(401).json({ message: "Invalid credentials" });
+  if (!match) {
+    await logAuditEvent(
+      null,
+      "LOGIN",
+      "User",
+      `Failed login attempt with email ${email} (invalid password)`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { email }
+    );
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+
+  // Record login
+  const ipAddress = req.ip || req.connection.remoteAddress;
+  const userAgent = req.get('user-agent') || '';
+  user.recordLogin(ipAddress, userAgent);
+  await user.save();
+
+  await logAuditEvent(
+    user._id,
+    "LOGIN",
+    "User",
+    `User ${user.name} (${user.email}) logged in`,
+    ipAddress,
+    userAgent,
+    "success",
+    { userId: user._id, email: user.email, role: user.role }
+  );
 
   const payload = { sub: user._id, role: user.role, email: user.email };
   const token = jwt.sign(payload, process.env.JWT_SECRET, {
@@ -108,6 +173,18 @@ export const updateProfile = async (req, res) => {
     const user = await User.findByIdAndUpdate(req.user.id, value, {
       new: true,
     }).select("-password");
+    
+    await logAuditEvent(
+      req.user.id,
+      "UPDATE_PROFILE",
+      "User",
+      `User ${user.name} (${user.email}) updated profile`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "success",
+      { userId: user._id }
+    );
+    
     res.json({
       id: user._id,
       name: user.name,
@@ -118,6 +195,16 @@ export const updateProfile = async (req, res) => {
       address: user.address,
     });
   } catch (error) {
+    await logAuditEvent(
+      req.user.id,
+      "UPDATE_PROFILE",
+      "User",
+      `Failed to update profile: ${error.message}`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { error: error.message }
+    );
     res.status(500).json({ message: "Error updating profile" });
   }
 };

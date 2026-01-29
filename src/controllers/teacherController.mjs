@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { logAuditEvent } from "../utils/auditLogger.mjs";
 import Teacher from '../models/Teacher.mjs';
 import User from '../models/User.mjs';
 import bcrypt from 'bcryptjs';
@@ -26,7 +27,19 @@ export const createTeacher = async (req, res) => {
   
   let { name, email, password, staffId, subjects, qualification, experience, department, salary, classes } = value;
   const exists = await User.findOne({ email });
-  if (exists) return res.status(409).json({ message: 'Email already in use' });
+  if (exists) {
+    await logAuditEvent(
+      req.user?.id,
+      "CREATE_TEACHER",
+      "Teacher",
+      `Attempted to create teacher with email ${email} (already exists)`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { email }
+    );
+    return res.status(409).json({ message: 'Email already in use' });
+  }
   
   // generate a password if not provided
   if (!password) password = Math.random().toString(36).slice(-8);
@@ -90,7 +103,16 @@ export const createTeacher = async (req, res) => {
     dateOfBirth: value.dateOfBirth,
     address: value.address
   });
-  
+  await logAuditEvent(
+    req.user?.id,
+    "CREATE_TEACHER",
+    "Teacher",
+    `Created teacher ${name} (${email})`,
+    req.ip || req.connection?.remoteAddress,
+    req.get && req.get("user-agent"),
+    "success",
+    { teacherId: teacher._id, userId: user._id, name, email }
+  );
   res.status(201).json({ teacherId: teacher._id, userId: user._id, user, teacher });
 };
 
@@ -150,8 +172,29 @@ export const updateTeacher = async (req, res) => {
   if (error) return res.status(400).json({ message: error.message });
   
   const teacher = await Teacher.findByIdAndUpdate(id, value, { new: true }).populate('user', 'name email avatar phone');
-  if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
-  
+  if (!teacher) {
+    await logAuditEvent(
+      req.user?.id,
+      "UPDATE_TEACHER",
+      "Teacher",
+      `Attempted to update teacher ${id} (not found)`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { teacherId: id }
+    );
+    return res.status(404).json({ message: 'Teacher not found' });
+  }
+  await logAuditEvent(
+    req.user?.id,
+    "UPDATE_TEACHER",
+    "Teacher",
+    `Updated teacher ${teacher.user.name} (${teacher.user.email})`,
+    req.ip || req.connection?.remoteAddress,
+    req.get && req.get("user-agent"),
+    "success",
+    { teacherId: teacher._id, name: teacher.user.name, email: teacher.user.email }
+  );
   res.json({
     _id: teacher._id,
     name: teacher.user.name,
@@ -169,10 +212,30 @@ export const updateTeacher = async (req, res) => {
 export const deleteTeacher = async (req, res) => {
   const { id } = req.params;
   const teacher = await Teacher.findByIdAndDelete(id);
-  if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
-  
+  if (!teacher) {
+    await logAuditEvent(
+      req.user?.id,
+      "DELETE_TEACHER",
+      "Teacher",
+      `Attempted to delete teacher ${id} (not found)`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { teacherId: id }
+    );
+    return res.status(404).json({ message: 'Teacher not found' });
+  }
   // Optionally delete the associated user as well
   await User.findByIdAndDelete(teacher.user);
-  
+  await logAuditEvent(
+    req.user?.id,
+    "DELETE_TEACHER",
+    "Teacher",
+    `Deleted teacher ${teacher.user}`,
+    req.ip || req.connection?.remoteAddress,
+    req.get && req.get("user-agent"),
+    "success",
+    { teacherId: teacher._id, userId: teacher.user }
+  );
   res.json({ message: 'Teacher deleted successfully' });
 };

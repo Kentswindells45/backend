@@ -5,24 +5,24 @@ const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 const generateMockResponse = (query) => {
   const lowerQuery = (query || '').toLowerCase();
   if (lowerQuery.includes('timetable') || lowerQuery.includes('schedule')) {
-    return 'Your timetable for today includes:\n- 9:00 AM - Mathematics\n- 10:30 AM - Physics\n- 12:00 PM - English\n- 2:00 PM - Chemistry';
+    return 'Please visit the Timetable section in the main menu to view your class schedule.';
   }
   if (lowerQuery.includes('exam') || lowerQuery.includes('test')) {
-    return 'Your next exam is Mathematics on November 15, 2025. It will cover topics from chapters 1-5. The exam duration is 2 hours.';
+    return 'Please check the Exams page to view your exam schedules and details.';
   }
   if (lowerQuery.includes('attendance')) {
-    return 'Your current attendance is 92%. You have attended 138 out of 150 classes. Keep up the good work!';
+    return 'Please visit your dashboard or the Attendance page to view your attendance records.';
   }
   if (lowerQuery.includes('grade') || lowerQuery.includes('marks') || lowerQuery.includes('result')) {
-    return 'Your recent grades:\n- Mathematics: A (85%)\n- Physics: B+ (78%)\n- Chemistry: A- (82%)\n- English: A (88%)\nOverall GPA: 3.6';
+    return 'Please visit the Results page to view your grades and academic performance.';
   }
   if (lowerQuery.includes('fee') || lowerQuery.includes('payment')) {
-    return 'Your fee status: All dues are cleared. Next payment of ₵500 is due on December 1, 2025.';
+    return 'Please visit the Fees page to view your fee status and payment information.';
   }
   if (lowerQuery.includes('help')) {
-    return 'I can help you with:\n- View your timetable\n- Check exam schedules\n- Review attendance\n- Check grades and results\n- Fee payment status\n- Library books\n- Announcements\n\nJust ask me anything!';
+    return 'I can help you with information about:\n- Your timetable\n- Exam schedules\n- Attendance records\n- Grades and results\n- Fee status\n- Library resources\n- School announcements\n\nPlease visit the relevant section in the main menu for detailed information!';
   }
-  return "I'm here to help! You can ask me about your timetable, exams, attendance, grades, fees, or any other school-related information.";
+  return "I'm here to assist! Feel free to ask me about school-related information. For detailed data, please visit the relevant section in the main menu.";
 };
 
 export const chat = async (req, res) => {

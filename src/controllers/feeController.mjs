@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { logAuditEvent } from "../utils/auditLogger.mjs";
 import Fee from '../models/Fee.mjs';
 import Student from '../models/Student.mjs';
 
@@ -16,7 +17,19 @@ export const createFee = async (req, res) => {
 
   try {
     const student = await Student.findById(value.student);
-    if (!student) return res.status(404).json({ message: 'Student not found' });
+    if (!student) {
+      await logAuditEvent(
+        req.user?.id,
+        "CREATE_FEE",
+        "Fee",
+        `Attempted to create fee for student ${value.student} (not found)`,
+        req.ip || req.connection?.remoteAddress,
+        req.get && req.get("user-agent"),
+        "failed",
+        { studentId: value.student }
+      );
+      return res.status(404).json({ message: 'Student not found' });
+    }
 
     const fee = await Fee.create({
       student: value.student,
@@ -26,8 +39,29 @@ export const createFee = async (req, res) => {
       notes: value.notes,
     });
 
+    await logAuditEvent(
+      req.user?.id,
+      "CREATE_FEE",
+      "Fee",
+      `Created fee for student ${student._id} (${student.user})`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "success",
+      { feeId: fee._id, studentId: student._id }
+    );
+
     res.status(201).json(fee);
   } catch (err) {
+    await logAuditEvent(
+      req.user?.id,
+      "CREATE_FEE",
+      "Fee",
+      `Failed to create fee: ${err.message}`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { error: err.message }
+    );
     res.status(400).json({ message: err.message });
   }
 };
@@ -90,9 +124,41 @@ export const updateFee = async (req, res) => {
 
   try {
     const fee = await Fee.findByIdAndUpdate(id, value, { new: true });
-    if (!fee) return res.status(404).json({ message: 'Fee not found' });
+    if (!fee) {
+      await logAuditEvent(
+        req.user?.id,
+        "UPDATE_FEE",
+        "Fee",
+        `Attempted to update fee ${id} (not found)`,
+        req.ip || req.connection?.remoteAddress,
+        req.get && req.get("user-agent"),
+        "failed",
+        { feeId: id }
+      );
+      return res.status(404).json({ message: 'Fee not found' });
+    }
+    await logAuditEvent(
+      req.user?.id,
+      "UPDATE_FEE",
+      "Fee",
+      `Updated fee ${fee._id}`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "success",
+      { feeId: fee._id }
+    );
     res.json(fee);
   } catch (err) {
+    await logAuditEvent(
+      req.user?.id,
+      "UPDATE_FEE",
+      "Fee",
+      `Failed to update fee: ${err.message}`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { error: err.message }
+    );
     res.status(400).json({ message: err.message });
   }
 };
@@ -102,9 +168,41 @@ export const deleteFee = async (req, res) => {
 
   try {
     const fee = await Fee.findByIdAndDelete(id);
-    if (!fee) return res.status(404).json({ message: 'Fee not found' });
+    if (!fee) {
+      await logAuditEvent(
+        req.user?.id,
+        "DELETE_FEE",
+        "Fee",
+        `Attempted to delete fee ${id} (not found)`,
+        req.ip || req.connection?.remoteAddress,
+        req.get && req.get("user-agent"),
+        "failed",
+        { feeId: id }
+      );
+      return res.status(404).json({ message: 'Fee not found' });
+    }
+    await logAuditEvent(
+      req.user?.id,
+      "DELETE_FEE",
+      "Fee",
+      `Deleted fee ${fee._id}`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "success",
+      { feeId: fee._id }
+    );
     res.json({ message: 'Fee deleted successfully' });
   } catch (err) {
+    await logAuditEvent(
+      req.user?.id,
+      "DELETE_FEE",
+      "Fee",
+      `Failed to delete fee: ${err.message}`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { error: err.message }
+    );
     res.status(400).json({ message: err.message });
   }
 };

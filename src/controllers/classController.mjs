@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { logAuditEvent } from "../utils/auditLogger.mjs";
 import ClassModel from '../models/Class.mjs';
 import Teacher from '../models/Teacher.mjs';
 import Student from '../models/Student.mjs';
@@ -26,12 +27,36 @@ export const createClass = async (req, res) => {
   // Check if teacher exists if provided
   if (teacherId) {
     const teacher = await Teacher.findById(teacherId);
-    if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
+    if (!teacher) {
+      await logAuditEvent(
+        req.user?.id,
+        "CREATE_CLASS",
+        "Class",
+        `Attempted to create class with teacher ${teacherId} (not found)`,
+        req.ip || req.connection?.remoteAddress,
+        req.get && req.get("user-agent"),
+        "failed",
+        { teacherId }
+      );
+      return res.status(404).json({ message: 'Teacher not found' });
+    }
   }
 
   // Check if code is unique
   const existingClass = await ClassModel.findOne({ code });
-  if (existingClass) return res.status(409).json({ message: 'Class code already exists' });
+  if (existingClass) {
+    await logAuditEvent(
+      req.user?.id,
+      "CREATE_CLASS",
+      "Class",
+      `Attempted to create class with code ${code} (already exists)`,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { code }
+    );
+    return res.status(409).json({ message: 'Class code already exists' });
+  }
 
   const newClass = await ClassModel.create({
     name,
@@ -44,6 +69,16 @@ export const createClass = async (req, res) => {
     location
   });
 
+  await logAuditEvent(
+    req.user?.id,
+    "CREATE_CLASS",
+    "Class",
+    `Created class ${name} (${code}) for grade ${grade}`,
+    req.ip || req.connection?.remoteAddress,
+    req.get && req.get("user-agent"),
+    "success",
+    { classId: newClass._id, name, code, grade }
+  );
   res.status(201).json(newClass);
 };
 
@@ -152,13 +187,37 @@ export const updateClass = async (req, res) => {
   // Check if teacher exists if provided
   if (teacherId) {
     const teacher = await Teacher.findById(teacherId);
-    if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
+    if (!teacher) {
+      await logAuditEvent(
+        req.user?.id,
+        "UPDATE_CLASS",
+        "Class",
+        `Attempted to update class with teacher ${teacherId} (not found)`,
+        req.ip || req.connection?.remoteAddress,
+        req.get && req.get("user-agent"),
+        "failed",
+        { teacherId }
+      );
+      return res.status(404).json({ message: 'Teacher not found' });
+    }
   }
 
   // Check if code is unique (excluding current class)
   if (code) {
     const existingClass = await ClassModel.findOne({ code, _id: { $ne: id } });
-    if (existingClass) return res.status(409).json({ message: 'Class code already exists' });
+    if (existingClass) {
+      await logAuditEvent(
+        req.user?.id,
+        "UPDATE_CLASS",
+        "Class",
+        `Attempted to update class to code ${code} (already exists)`,
+        req.ip || req.connection?.remoteAddress,
+        req.get && req.get("user-agent"),
+        "failed",
+        { code }
+      );
+      return res.status(409).json({ message: 'Class code already exists' });
+    }
   }
 
   const updateData = {};
@@ -182,9 +241,32 @@ export const updateClass = async (req, res) => {
       }
     });
 
-  if (!updatedClass) return res.status(404).json({ message: 'Class not found' });
+  if (!updatedClass) {
+    await logAuditEvent(
+      req.user?.id,
+      "UPDATE_CLASS",
+      "Class",
+      `Attempted to update class ${id} (not found)` ,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { classId: id }
+    );
+    return res.status(404).json({ message: 'Class not found' });
+  }
 
   const studentCount = await Student.countDocuments({ classAssigned: updatedClass._id });
+
+  await logAuditEvent(
+    req.user?.id,
+    "UPDATE_CLASS",
+    "Class",
+    `Updated class ${updatedClass.name} (${updatedClass.code})` ,
+    req.ip || req.connection?.remoteAddress,
+    req.get && req.get("user-agent"),
+    "success",
+    { classId: updatedClass._id, name: updatedClass.name, code: updatedClass.code }
+  );
 
   const formattedClass = {
     _id: updatedClass._id,
@@ -212,6 +294,28 @@ export const updateClass = async (req, res) => {
 export const deleteClass = async (req, res) => {
   const { id } = req.params;
   const deletedClass = await ClassModel.findByIdAndDelete(id);
-  if (!deletedClass) return res.status(404).json({ message: 'Class not found' });
+  if (!deletedClass) {
+    await logAuditEvent(
+      req.user?.id,
+      "DELETE_CLASS",
+      "Class",
+      `Attempted to delete class ${id} (not found)` ,
+      req.ip || req.connection?.remoteAddress,
+      req.get && req.get("user-agent"),
+      "failed",
+      { classId: id }
+    );
+    return res.status(404).json({ message: 'Class not found' });
+  }
+  await logAuditEvent(
+    req.user?.id,
+    "DELETE_CLASS",
+    "Class",
+    `Deleted class ${deletedClass.name} (${deletedClass.code})` ,
+    req.ip || req.connection?.remoteAddress,
+    req.get && req.get("user-agent"),
+    "success",
+    { classId: deletedClass._id, name: deletedClass.name, code: deletedClass.code }
+  );
   res.json({ message: 'Class deleted successfully' });
 };
