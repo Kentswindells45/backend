@@ -22,7 +22,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 // Increase JSON body size limit to allow base64 avatar uploads (adjust as needed)
 app.use(express.json({ limit: "10mb" }));
@@ -40,11 +40,11 @@ app.use(
     res.setHeader("Access-Control-Allow-Origin", "*");
     next();
   },
-  express.static(path.join(publicDir, "uploads"))
+  express.static(path.join(publicDir, "uploads")),
 );
 
 app.get("/", (req, res) =>
-  res.json({ ok: true, name: "School Management API" })
+  res.json({ ok: true, name: "School Management API" }),
 );
 
 app.use("/api/auth", authRoutes);
